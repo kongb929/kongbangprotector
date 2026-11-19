@@ -304,7 +304,7 @@ kbd { font-family: var(--font-body); font-size: 12px; border: 1.5px solid var(--
           <input id="nameInput" name="name" maxlength="12" placeholder="카드에 넣을 닉네임 (선택)" aria-label="점수 카드에 넣을 닉네임">
         </form>
         <div class="row share">
-          <button class="btn small" id="saveBtn" type="button" hidden>이미지 저장</button>
+          <button class="btn small" id="saveBtn" type="button">이미지 저장</button>
           <button class="btn small" id="copyImgBtn" type="button">이미지 복사</button>
           <button class="btn small" id="copyTextBtn" type="button">결과 글 복사</button>
         </div>
@@ -762,23 +762,37 @@ kbd { font-family: var(--font-body); font-size: 12px; border: 1.5px solid var(--
     } catch (e) { fail(); }
   });
 
+  // Save: Claude's download prompt when available; a normal file download on a regular web page
+  // (GitHub Pages / installed app); otherwise point to long-press / right-click.
   $("saveBtn").addEventListener("click", async () => {
-    if (!downloads || !cardBlob || !S) return;
-    try {
-      await downloads.save({ filename: `콩방지킴이_${S.score}점.png`, data: cardBlob });
-      shareMsg("카드 이미지를 저장했어요!");
-    } catch (e) {
-      const code = e && e.code;
-      if (code === "declined") return;
-      if (code === "rate_limited") { shareMsg("저장 창이 이미 열려 있어요. 잠시 후 다시 눌러 주세요."); return; }
-      $("saveBtn").hidden = true;
-      shareMsg("여기서는 저장 버튼을 쓸 수 없어요. 카드를 길게 누르거나 우클릭해서 저장해 주세요.");
+    if (!cardBlob || !S) return;
+    const filename = `콩방지킴이_${S.score}점.png`;
+    if (downloads) {
+      try {
+        await downloads.save({ filename, data: cardBlob });
+        shareMsg("카드 이미지를 저장했어요!");
+        return;
+      } catch (e) {
+        const code = e && e.code;
+        if (code === "declined") return;
+        if (code === "rate_limited") { shareMsg("저장 창이 이미 열려 있어요. 잠시 후 다시 눌러 주세요."); return; }
+      }
     }
+    let topLevel = false;
+    try { topLevel = window.self === window.top; } catch (e) {}
+    if (topLevel) {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(cardBlob); a.download = filename;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+      shareMsg("카드 이미지를 저장했어요! 다운로드 폴더를 확인해 주세요.");
+      return;
+    }
+    shareMsg("여기서는 바로 저장이 안 돼요. 카드를 길게 누르거나(휴대폰) 우클릭(PC)해서 이미지를 저장해 주세요.");
   });
 
   (async () => {
     try { downloads = window.claude && window.claude.use ? await window.claude.use("downloads") : null; } catch (e) { downloads = null; }
-    $("saveBtn").hidden = !downloads;
   })();
 
   function pause() { if (S && S.running && !S.paused) { S.paused = true; $("pauseOverlay").hidden = false; } }

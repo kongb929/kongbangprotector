@@ -362,8 +362,8 @@ kbd { font-family: var(--font-body); font-size: 12px; border: 1.5px solid var(--
   const RUNAWAY_LINE = "콩바보멍청이 깔깔";
   const RUNAWAY_RATE = 0.05;
   const RUSH_RATE = 0.15;
-  // Rotten-bean bomb: planted on 12% of spawns, explodes after 2 s unless shot.
-  const BOMB_RATE = 0.12;
+  // Rotten-bean bomb: planted on 10% of spawns, explodes after 2 s unless shot.
+  const BOMB_RATE = 0.10;
   const BOMB_FUSE = 2;
   const BOMB_PENALTY = 10; // points lost per good viewer caught in the blast
   const LANES = [0.36, 0.64, 0.92];
@@ -496,13 +496,12 @@ kbd { font-family: var(--font-body); font-size: 12px; border: 1.5px solid var(--
   const gapFor = lvl => Math.max(0.45, 1.35 - 0.12 * (lvl - 1));
 
   function spawn() {
-    const free = LANES.map((_, i) => i).filter(i => !S.ents.some(e => e.lane === i && e.state !== "dead" && e.x > 0.74));
+    if (Math.random() < BOMB_RATE && !S.ents.some(e => e.type === "bomb" && !e.done)) plantBomb();
+    const free = LANES.map((_, i) => i).filter(i => !S.ents.some(e => e.lane === i && e.type !== "bomb" && e.state !== "dead" && e.x > 0.74));
     if (!free.length) { S.spawnIn = 0.2; return; }
     const lane = pick(free);
     // Fast viewers only spawn when nobody is ahead in the lane (no overtaking).
-    // A rotten-bean bomb walks in like everyone else, one at a time.
-    if (Math.random() < BOMB_RATE && !S.ents.some(e => e.type === "bomb" && !e.done)) { spawnBomb(lane); return; }
-    const laneClear = !S.ents.some(e => e.lane === lane && !e.gone && e.state !== "dead" && e.x > 0.1);
+    const laneClear = !S.ents.some(e => e.lane === lane && e.type !== "bomb" && !e.gone && e.state !== "dead" && e.x > 0.1);
     const runaway = S.level > 10 && laneClear && Math.random() < RUNAWAY_RATE;
     const r = Math.random();
     let type, text, hidden = false;
@@ -535,15 +534,15 @@ kbd { font-family: var(--font-body); font-size: 12px; border: 1.5px solid var(--
     S.ents.push(ent);
   }
 
-  function spawnBomb(lane) {
+  // Planted at a random spot in the middle of the field; it does not walk.
+  function plantBomb() {
+    const lane = Math.random() * LANES.length | 0;
     const el = document.createElement("div");
     el.className = "critter bomb";
     el.style.top = (LANES[lane] * 100) + "%";
-    el.style.zIndex = String(10 + lane);
-    el.style.setProperty("--d", (-Math.random() * 0.8).toFixed(2) + "s");
+    el.style.zIndex = String(20 + lane); // above walkers so it can always be clicked
     el.innerHTML = `<div class="bubble"><span class="say"></span></div>${BOMB}`;
-    const ent = { el, type: "bomb", lane, x: 1.02, fuse: BOMB_FUSE, state: "walk", done: false, gone: false,
-      speed: speedFor(S.level) * (0.9 + Math.random() * 0.25) };
+    const ent = { el, type: "bomb", lane, x: 0.2 + Math.random() * 0.5, fuse: BOMB_FUSE, state: "bomb", done: false, gone: false };
     el.querySelector(".say").textContent = "💣 " + BOMB_FUSE.toFixed(1);
     el.style.transform = `translate(${ent.x * W}px,-100%)`;
     el.addEventListener("pointerdown", ev => {
@@ -697,6 +696,7 @@ kbd { font-family: var(--font-body); font-size: 12px; border: 1.5px solid var(--
         if (Math.ceil(e.fuse * 4) !== before) Sfx.fuse();
         e.el.querySelector(".say").textContent = "💣 " + e.fuse.toFixed(1);
         e.el.classList.toggle("urgent", e.fuse < 0.8);
+        continue;
       }
       e.x -= e.speed * dt * (e.state === "hurt" ? 1.8 : 1);
       if (e.hidden && !e.revealed && !e.done && e.x * W + 32 <= W * e.revealX) reveal(e);

@@ -362,8 +362,9 @@ kbd { font-family: var(--font-body); font-size: 12px; border: 1.5px solid var(--
   const RUNAWAY_LINE = "콩바보멍청이 깔깔";
   const RUNAWAY_RATE = 0.05;
   const RUSH_RATE = 0.15;
-  // Rotten-bean bomb: planted on 10% of spawns, explodes after 2 s unless shot.
-  const BOMB_RATE = 0.10;
+  // Rotten-bean bomb: planted on a timer (every 13–15 s, ~14 s on average) so it does not
+  // get more frequent as spawns speed up; explodes after 2 s unless shot.
+  const bombGap = () => 13 + Math.random() * 2;
   const BOMB_FUSE = 2;
   const BOMB_PENALTY = 10; // points lost per good viewer caught in the blast
   const LANES = [0.36, 0.64, 0.92];
@@ -474,7 +475,7 @@ kbd { font-family: var(--font-body); font-size: 12px; border: 1.5px solid var(--
   let S = null;
 
   function newState() {
-    return { score: 0, lives: MAX_LIVES, level: 1, elapsed: 0, spawnIn: 0.5, ents: [],
+    return { score: 0, lives: MAX_LIVES, level: 1, elapsed: 0, spawnIn: 0.5, bombIn: bombGap(), ents: [],
       stats: { kills: 0, cheese: 0, miss: 0 }, running: true, paused: false };
   }
 
@@ -496,7 +497,6 @@ kbd { font-family: var(--font-body); font-size: 12px; border: 1.5px solid var(--
   const gapFor = lvl => Math.max(0.45, 1.35 - 0.12 * (lvl - 1));
 
   function spawn() {
-    if (Math.random() < BOMB_RATE && !S.ents.some(e => e.type === "bomb" && !e.done)) plantBomb();
     const free = LANES.map((_, i) => i).filter(i => !S.ents.some(e => e.lane === i && e.type !== "bomb" && e.state !== "dead" && e.x > 0.74));
     if (!free.length) { S.spawnIn = 0.2; return; }
     const lane = pick(free);
@@ -687,6 +687,8 @@ kbd { font-family: var(--font-body); font-size: 12px; border: 1.5px solid var(--
     if (lvl !== S.level) { S.level = lvl; hud(); banner(`레벨 ${lvl} · 채팅이 빨라져요!`); Sfx.level(); }
     S.spawnIn -= dt;
     if (S.spawnIn <= 0) { spawn(); S.spawnIn = gapFor(S.level) * (0.75 + Math.random() * 0.5); }
+    S.bombIn -= dt;
+    if (S.bombIn <= 0) { plantBomb(); S.bombIn = bombGap(); }
     for (const e of S.ents) {
       if (e.gone || e.state === "dead") continue;
       if (e.type === "bomb") {

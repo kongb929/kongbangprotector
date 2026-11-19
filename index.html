@@ -674,7 +674,13 @@ kbd { font-family: var(--font-body); font-size: 12px; border: 1.5px solid var(--
   async function drawCard() {
     if (!S) return;
     const token = ++cardToken;
-    try { await document.fonts.load(`40px ${CARD_FONT}`); } catch (e) {}
+    // Korean web fonts are split into many small character files, and canvas text does not
+    // request them by itself. Ask for every character the card will draw, or rare syllables
+    // (e.g. "텼") fall back to another font.
+    const cardChars = ["콩방 지킴이", titleFor(S.score), cardName() || "익명의 지킴이",
+      "0123456789점명번", `레벨 ${S.level}까지 버텼어요`, "배드 시청자 퇴치 에게 보낸 하트 실수한 횟수",
+      ". · 콩하! 오늘도 방송 지켰어요"].join(" ");
+    try { await document.fonts.load(`40px ${CARD_FONT}`, cardChars); } catch (e) {}
     if (token !== cardToken) return;
     const c = cardCanvas.getContext("2d"), CW = 800, CH = 1000, F = CARD_FONT;
     const bg = c.createLinearGradient(0, 0, CW, CH);

@@ -1,0 +1,833 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="theme-color" content="#FFD45C">
+<meta name="apple-mobile-web-app-title" content="콩방 지킴이">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>콩방 지킴이</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=Gowun+Dodum&display=swap">
+<style>
+/* Layout: one game card — HUD strip, a three-lane chat stage, big weapon buttons under it. Single committed pastel look. */
+:root {
+  --page: #EAF0FF;
+  --stage-a: #FBF1FF;
+  --stage-b: #E6F5FF;
+  --ink: #3D3354;
+  --ink-soft: #6F6688;
+  --bean: #B9566A;
+  --bean-dark: #7A2E3E;
+  --bean-eye: #2A1A22;
+  --leaf: #96CF72;
+  --leaf-dark: #4F8F3A;
+  --pink: #FF7FA8;
+  --red: #F2545B;
+  --sun: #FFD45C;
+  --card: #FFFFFF;
+  --line: #D9D3EE;
+  --font-display: "Jua", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --font-body: "Gowun Dodum", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  color-scheme: light;
+}
+html, body { height: 100%; }
+body {
+  background: var(--page);
+  color: var(--ink);
+  font-family: var(--font-body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 16px;
+  box-sizing: border-box;
+}
+.wrap { max-width: 960px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px; }
+
+/* HUD */
+.hud { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.brand { font-family: var(--font-display); font-size: 26px; display: flex; align-items: center; gap: 8px; }
+.brand small { font-family: var(--font-body); font-size: 13px; color: var(--ink-soft); }
+.stats { display: flex; gap: 8px; flex-wrap: wrap; }
+.stat {
+  background: var(--card); border: 2px solid var(--line); border-radius: 999px;
+  padding: 4px 14px; font-family: var(--font-display); font-size: 17px;
+  display: flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums;
+}
+.mute { cursor: pointer; color: var(--ink); font-size: 17px; }
+.mute:focus-visible { outline: 3px solid var(--pink); outline-offset: 2px; }
+.stat .lab { font-size: 13px; color: var(--ink-soft); letter-spacing: .04em; }
+.pips { display: inline-flex; gap: 3px; }
+.pip { width: 14px; height: 12px; border-radius: 50%; background: var(--bean); border: 2px solid var(--bean-dark); }
+.pip.off { background: var(--line); border-color: #BDB5D6; }
+
+/* Stage */
+.field {
+  position: relative; overflow: hidden; border-radius: 24px;
+  height: clamp(380px, 62vh, 560px);
+  background:
+    radial-gradient(circle at 1px 1px, rgba(61,51,84,.08) 1.5px, transparent 0) 0 0 / 22px 22px,
+    linear-gradient(160deg, var(--stage-a), var(--stage-b));
+  border: 3px solid var(--ink);
+  box-shadow: 0 6px 0 var(--ink);
+  user-select: none; -webkit-user-select: none; touch-action: manipulation;
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3Ccircle cx='16' cy='16' r='10' fill='none' stroke='%23F2545B' stroke-width='2.5'/%3E%3Cpath d='M16 2v8M16 22v8M2 16h8M22 16h8' stroke='%23F2545B' stroke-width='2.5' stroke-linecap='round'/%3E%3Ccircle cx='16' cy='16' r='2' fill='%23F2545B'/%3E%3C/svg%3E") 16 16, crosshair;
+}
+.field.mode-heart {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3Cpath d='M16 28 C6 20 2 14 2 9.5 A6.5 6.5 0 0 1 16 7 A6.5 6.5 0 0 1 30 9.5 C30 14 26 20 16 28Z' fill='%23FF7FA8' stroke='white' stroke-width='2'/%3E%3C/svg%3E") 16 16, pointer;
+}
+.lane { position: absolute; left: 0; right: 0; height: 10px; border-radius: 999px; background: rgba(61,51,84,.06); transform: translateY(-4px); }
+.field.ouch { animation: ouch .45s; }
+@keyframes ouch { 0%,100% { box-shadow: 0 6px 0 var(--ink); } 30% { box-shadow: 0 6px 0 var(--ink), inset 0 0 0 10px rgba(242,84,91,.45); } }
+
+/* Critters */
+.critter { position: absolute; left: 0; width: 64px; height: 60px; will-change: transform; }
+.bubble {
+  position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+  background: var(--card); border: 2px solid var(--ink); border-radius: 14px;
+  padding: 4px 11px; white-space: nowrap; font-family: var(--font-display); font-size: 17px; line-height: 1.3;
+  box-shadow: 0 2px 0 var(--ink);
+}
+.bubble::after {
+  content: ""; position: absolute; left: 50%; top: 100%; width: 10px; height: 10px;
+  background: var(--card); border-right: 2px solid var(--ink); border-bottom: 2px solid var(--ink);
+  transform: translate(-50%, -5px) rotate(45deg);
+}
+.bibo { display: inline-block; animation: bibo .35s ease-out; }
+@keyframes bibo { 0% { transform: scale(0); } 70% { transform: scale(1.35); } 100% { transform: scale(1); } }
+
+.bean { width: 64px; height: 60px; overflow: visible; display: block; }
+.bean .shadow { fill: rgba(61,51,84,.14); }
+.bean .feet ellipse { fill: var(--bean-dark); }
+.bean .body { fill: var(--bean); stroke: var(--ink); stroke-width: 2.5; }
+.bean .sprout { fill: none; stroke: var(--leaf-dark); stroke-width: 2.5; stroke-linecap: round; }
+.bean .leaf { fill: var(--leaf); stroke: var(--ink); stroke-width: 2; }
+.bean .blush { fill: #FFB3C4; opacity: .75; }
+.bean .eye { fill: var(--bean-eye); }
+.bean .glint { fill: #fff; }
+.bean .mouth, .bean .line { fill: none; stroke: var(--bean-eye); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.bean .face-hurt, .bean .face-happy { display: none; }
+.bean .bodyg { animation: bob .42s ease-in-out infinite alternate; animation-delay: var(--d, 0s); }
+.bean .feet ellipse:first-child { animation: step .42s ease-in-out infinite alternate; animation-delay: var(--d, 0s); }
+.bean .feet ellipse:last-child { animation: step .42s ease-in-out infinite alternate-reverse; animation-delay: var(--d, 0s); }
+@keyframes bob { from { transform: translateY(0); } to { transform: translateY(-3px); } }
+@keyframes step { from { transform: translateY(0); } to { transform: translateY(-2px); } }
+
+.critter.rush .bean { transform: rotate(-7deg); }
+.critter.rush .bean .bodyg, .critter.rush .bean .feet ellipse { animation-duration: .18s; }
+.critter.hurt .face-normal, .critter.loved .face-normal { display: none; }
+.critter.hurt .face-hurt { display: inline; }
+.critter.loved .face-happy { display: inline; }
+.critter.hurt .bean { animation: shake .3s 2; }
+.critter.hurt { opacity: .9; }
+.critter.leaving { transition: opacity .5s; opacity: 0; }
+@keyframes shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+.critter.pop .bean { animation: pop .45s forwards; transform-origin: 50% 70%; }
+.critter.pop .bubble { transition: opacity .2s; opacity: 0; }
+@keyframes pop { 0% { transform: scale(1); } 35% { transform: scale(1.3, .7); } 100% { transform: scale(0); opacity: 0; } }
+
+/* Effects */
+.fx { position: absolute; pointer-events: none; z-index: 50; }
+.float {
+  font-family: var(--font-display); font-size: 20px; white-space: nowrap; transform: translate(-50%, 0);
+  animation: rise .95s ease-out forwards; color: var(--leaf-dark);
+  text-shadow: 0 2px 0 #fff, 2px 0 0 #fff, -2px 0 0 #fff, 0 -2px 0 #fff;
+}
+.float.bad { color: var(--red); }
+.float.love { color: var(--pink); font-size: 22px; }
+@keyframes rise { from { opacity: 1; transform: translate(-50%, 0); } to { opacity: 0; transform: translate(-50%, -44px); } }
+.burst {
+  font-family: var(--font-display); font-size: 22px; color: var(--ink);
+  background: var(--sun); border: 2.5px solid var(--ink); padding: 6px 10px;
+  clip-path: polygon(50% 0, 61% 30%, 98% 20%, 72% 48%, 100% 78%, 62% 68%, 50% 100%, 38% 68%, 0 78%, 28% 48%, 2% 20%, 39% 30%);
+  transform: translate(-50%, -50%); animation: burst .45s ease-out forwards;
+}
+@keyframes burst { from { transform: translate(-50%, -50%) scale(.4); } 50% { transform: translate(-50%, -50%) scale(1.15); } to { transform: translate(-50%, -50%) scale(1); opacity: 0; } }
+.ring { width: 26px; height: 26px; border-radius: 50%; border: 3px solid var(--red); transform: translate(-50%, -50%); animation: ring .3s ease-out forwards; }
+@keyframes ring { to { transform: translate(-50%, -50%) scale(1.8); opacity: 0; } }
+.heartbit { font-size: 20px; transform: translate(-50%, -50%); animation: heartbit .9s ease-out forwards; }
+@keyframes heartbit { to { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1.3); opacity: 0; } }
+.banner {
+  position: absolute; left: 50%; top: 12px; transform: translateX(-50%); z-index: 60;
+  background: var(--ink); color: #fff; font-family: var(--font-display); font-size: 17px;
+  padding: 6px 16px; border-radius: 999px; white-space: nowrap; animation: banner 1.8s forwards; pointer-events: none;
+}
+@keyframes banner { 0% { opacity: 0; transform: translate(-50%, -10px); } 12%, 80% { opacity: 1; transform: translate(-50%, 0); } 100% { opacity: 0; } }
+
+/* Overlay */
+.overlay {
+  position: absolute; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center;
+  background: rgba(234,240,255,.82); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+  overflow-y: auto; padding: 16px; box-sizing: border-box; cursor: default;
+}
+.panel {
+  background: var(--card); border: 3px solid var(--ink); border-radius: 22px; box-shadow: 0 5px 0 var(--ink);
+  padding: 20px 22px; max-width: 560px; width: 100%; display: flex; flex-direction: column; gap: 14px; margin: auto;
+}
+.panel h1, .panel h2 { font-family: var(--font-display); font-weight: 400; margin: 0; text-wrap: balance; }
+.panel h1 { font-size: 34px; }
+.panel h2 { font-size: 28px; }
+.panel p { margin: 0; line-height: 1.6; }
+.rules { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.rule { border: 2px solid var(--line); border-radius: 14px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.rule b { font-family: var(--font-display); font-weight: 400; font-size: 17px; }
+.rule .eg { display: flex; flex-wrap: wrap; gap: 4px; }
+.chip { font-family: var(--font-display); font-size: 14px; border: 1.5px solid var(--ink); border-radius: 10px; padding: 1px 8px; background: #fff; white-space: nowrap; }
+.rule .pts { font-size: 13px; color: var(--ink-soft); }
+.result { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; text-align: center; }
+.result div { border: 2px solid var(--line); border-radius: 14px; padding: 8px 4px; }
+.result strong { display: block; font-family: var(--font-display); font-weight: 400; font-size: 24px; font-variant-numeric: tabular-nums; }
+.result span { font-size: 12px; color: var(--ink-soft); }
+.big { font-family: var(--font-display); font-size: 48px; line-height: 1; font-variant-numeric: tabular-nums; }
+
+.btn {
+  font-family: var(--font-display); font-size: 20px; color: var(--ink);
+  background: var(--sun); border: 3px solid var(--ink); border-radius: 16px; box-shadow: 0 4px 0 var(--ink);
+  padding: 10px 18px; cursor: pointer;
+}
+.btn:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--ink); }
+.btn:focus-visible, .tool:focus-visible { outline: 3px solid var(--pink); outline-offset: 3px; }
+
+/* Tools */
+.tools { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.tool {
+  font-family: var(--font-display); font-size: 20px; color: var(--ink);
+  background: var(--card); border: 3px solid var(--ink); border-radius: 18px; box-shadow: 0 4px 0 var(--ink);
+  padding: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
+}
+kbd { font-family: var(--font-body); font-size: 12px; border: 1.5px solid var(--line); border-radius: 6px; padding: 0 6px; color: var(--ink-soft); background: var(--card); }
+
+/* Score card */
+.card { display: block; width: 100%; max-width: 320px; height: auto; aspect-ratio: 4 / 5; margin: 0 auto; border-radius: 18px; background: var(--stage-a); }
+.share .btn.small { flex: 1 1 auto; font-size: 16px; padding: 8px 12px; }
+#shareText { width: 100%; box-sizing: border-box; font-family: var(--font-body); font-size: 14px; color: var(--ink); border: 2px solid var(--line); border-radius: 12px; padding: 8px; resize: none; }
+.signform { display: flex; gap: 8px; flex-wrap: wrap; }
+.signform input {
+  flex: 1 1 160px; min-width: 0; font-family: var(--font-display); font-size: 18px; color: var(--ink);
+  border: 3px solid var(--ink); border-radius: 14px; padding: 8px 12px; background: #fff;
+}
+.signform input:focus-visible { outline: 3px solid var(--pink); outline-offset: 2px; }
+.signform .btn { font-size: 18px; padding: 8px 14px; }
+.btn:disabled { opacity: .5; cursor: default; }
+.signmsg { font-size: 13px; color: var(--ink-soft); margin: 0; min-height: 1em; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; }
+.tool[aria-pressed="true"].gun { background: #FFE1E2; }
+.tool[aria-pressed="true"].heart { background: #FFE3EE; }
+.tool[aria-pressed="true"] { transform: translateY(3px); box-shadow: 0 1px 0 var(--ink); }
+.hint { margin: 0; font-size: 13px; color: var(--ink-soft); text-align: center; line-height: 1.5; }
+
+@media (max-width: 520px) {
+  .rules { grid-template-columns: 1fr; }
+  .brand { font-size: 22px; }
+  .bubble { font-size: 15px; padding: 3px 9px; }
+  .panel h1 { font-size: 28px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bean .bodyg, .bean .feet ellipse { animation: none; }
+}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="hud">
+    <div class="brand">콩방 지킴이 <small>배드 시청자만 골라 쏘기</small></div>
+    <div class="stats">
+      <div class="stat"><span class="lab">점수</span><span id="score">0</span></div>
+      <div class="stat"><span class="lab">레벨</span><span id="level">1</span></div>
+      <div class="stat"><span class="lab">멘탈</span><span class="pips" id="lives"></span></div>
+      <button class="stat mute" id="muteBtn" type="button" aria-label="효과음 끄기">🔊</button>
+    </div>
+  </div>
+
+  <div class="field" id="field">
+    <div class="lane" style="top:36%"></div>
+    <div class="lane" style="top:64%"></div>
+    <div class="lane" style="top:92%"></div>
+
+    <div class="overlay" id="startOverlay">
+      <div class="panel">
+        <h1>콩방 지킴이</h1>
+        <p>단팥 친구들은 모두 똑같이 생겼어요. 채팅을 잘 읽고 배드 시청자만 쏘세요.<br>착한 시청자는 그냥 지나가게 두면 됩니다.</p>
+        <div class="rules">
+          <div class="rule">
+            <b>🔫 배드 시청자는 쏘기</b>
+            <div class="eg"><span class="chip">콩바비보</span><span class="chip">채팅 파업한다</span><span class="chip">싫어요 우우</span><span class="chip">자러간다 드르렁</span></div>
+            <span class="pts">+10점 · 놓치면 멘탈 -1</span>
+          </div>
+          <div class="rule">
+            <b>🙂 착한 시청자는 보내주기</b>
+            <div class="eg"><span class="chip">콩하</span><span class="chip">오늘 뭐해요?</span><span class="chip">식사 하셨나요?</span></div>
+            <span class="pts">잘못 쏘면 -10점, 멘탈 -1</span>
+          </div>
+          <div class="rule">
+            <b>🕵️ 숨은 배드 시청자 조심</b>
+            <div class="eg"><span class="chip">콩바</span><span class="chip">→</span><span class="chip">콩바비보</span></div>
+            <span class="pts">페이크 무빙을 하는 시청자예요. +15점</span>
+            <span class="pts">끝까지 "콩바"인 시청자는 방송을 잘 본 착한 시청자예요. 쏘지 말아요!</span>
+          </div>
+          <div class="rule">
+            <b>💗 치즈 시청자에겐 하트</b>
+            <div class="eg"><span class="chip">🧀</span></div>
+            <span class="pts">하트 +30점 · 배드 시청자에게 하트는 -30점</span>
+          </div>
+        </div>
+        <p class="hint">총/하트 전환은 아래 버튼이나 <kbd>스페이스</kbd> 바로 해요.<br>끝나면 점수 카드를 저장해서 자랑할 수 있어요.</p>
+        <div class="row"><button class="btn" id="startBtn" type="button">방송 지키러 가기</button><button class="btn" id="installBtn" type="button" hidden style="background:#fff">📲 앱으로 설치</button></div><p class="hint" id="installTip" hidden>아이폰·아이패드는 공유 버튼 → "홈 화면에 추가"를 누르면 앱처럼 설치돼요.</p>
+      </div>
+    </div>
+
+    <div class="overlay" id="pauseOverlay" hidden>
+      <div class="panel">
+        <h2>잠깐 쉬는 중</h2>
+        <p>채팅창이 멈췄어요. 준비되면 계속하세요.</p>
+        <button class="btn" id="resumeBtn" type="button">계속하기</button>
+      </div>
+    </div>
+
+    <div class="overlay" id="overOverlay" hidden>
+      <div class="panel">
+        <h2 id="overTitle">멘탈이 바닥났어요</h2>
+        <p id="bestLine" class="hint" style="text-align:left">최고 기록 0점</p>
+        <img class="card" id="cardImg" alt="이번 판 점수 카드" width="800" height="1000">
+        <form class="signform" id="nameForm" autocomplete="off">
+          <input id="nameInput" name="name" maxlength="12" placeholder="카드에 넣을 닉네임 (선택)" aria-label="점수 카드에 넣을 닉네임">
+        </form>
+        <div class="row share">
+          <button class="btn small" id="saveBtn" type="button" hidden>이미지 저장</button>
+          <button class="btn small" id="copyImgBtn" type="button">이미지 복사</button>
+          <button class="btn small" id="copyTextBtn" type="button">결과 글 복사</button>
+        </div>
+        <textarea id="shareText" readonly hidden rows="3" aria-label="결과 글"></textarea>
+        <p class="signmsg" id="shareMsg" aria-live="polite">카드를 길게 누르거나(휴대폰) 우클릭(PC)해서 저장·복사할 수도 있어요.</p>
+        <div class="row"><button class="btn" id="againBtn" type="button">다시 지키기</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tools">
+    <button class="tool gun" id="toolGun" type="button" aria-pressed="true">🔫 총</button>
+    <button class="tool heart" id="toolHeart" type="button" aria-pressed="false">💗 하트</button>
+  </div>
+  <p class="hint"><kbd>스페이스</kbd> 바로 총/하트 전환 · 레벨이 오를수록 채팅이 빨라져요 · 멘탈 3칸이 다 떨어지면 끝!</p>
+</div>
+
+<script>
+(() => {
+  // "콩바" is drawn separately (ALLY_KONGBA_RATE) so its share stays fixed.
+  const ALLY = ["콩하", "오늘 뭐해요?", "식사 하셨나요?", "오늘도 화이팅!", "방송 켜줘서 고마워요",
+    "목소리 좋다", "퇴근하고 왔어요", "오늘 컨디션 어때?", "보고 싶었어", "구독했어요", "콩천재"];
+  const ALLY_KONGBA_RATE = 0.15;
+  const ENEMY = ["콩바비보", "채팅 파업한다", "왁뿌볼을 찬양하라", "싫어요 우우", "싸우자 방장아",
+    "자러간다 드르렁", "시청자 탄압 반대해요", "오늘따라 킹받네", "흥 안 볼 거야", "오늘 방송 불매해요",
+    "ㅡㅡ", "콩성 실화냐"];
+  // Rare fast runaway bad viewer, only after level 10.
+  const RUNAWAY_LINE = "콩바보멍청이 깔깔";
+  const RUNAWAY_RATE = 0.05;
+  const LANES = [0.36, 0.64, 0.92];
+  const MAX_LIVES = 3;
+
+  /* ---------- Sound effects (synthesized, no files) ---------- */
+  const Sfx = (() => {
+    let ctx = null, muted = false;
+    try { muted = localStorage.getItem("kongbang-muted") === "1"; } catch (e) {}
+    function ensure() {
+      try {
+        if (!ctx) { const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return null; ctx = new AC(); }
+        if (ctx.state === "suspended") ctx.resume();
+      } catch (e) { return null; }
+      return ctx;
+    }
+    function tone(freq, dur, { type = "sine", vol = 0.2, at = 0, slide = 0 } = {}) {
+      if (muted) return; const c = ensure(); if (!c) return;
+      const t = c.currentTime + at, o = c.createOscillator(), g = c.createGain();
+      o.type = type; o.frequency.setValueAtTime(freq, t);
+      if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, freq * slide), t + dur);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(vol, t + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g); g.connect(c.destination); o.start(t); o.stop(t + dur + 0.02);
+    }
+    function noise(dur, vol) {
+      if (muted) return; const c = ensure(); if (!c) return;
+      const len = Math.floor(c.sampleRate * dur), buf = c.createBuffer(1, len, c.sampleRate), d = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
+      const s = c.createBufferSource(), f = c.createBiquadFilter(), g = c.createGain();
+      f.type = "lowpass"; f.frequency.value = 1800; g.gain.value = vol; s.buffer = buf;
+      s.connect(f); f.connect(g); g.connect(c.destination); s.start();
+    }
+    const seq = (notes, step, opts) => notes.forEach((f, i) => tone(f, opts.dur || 0.12, { ...opts, at: i * step }));
+    return {
+      unlock: ensure,
+      get muted() { return muted; },
+      setMuted(m) { muted = m; try { localStorage.setItem("kongbang-muted", m ? "1" : "0"); } catch (e) {} },
+      shot() { noise(0.08, 0.16); tone(520, 0.06, { type: "square", vol: 0.04, slide: 0.5 }); },
+      hit() { tone(660, 0.09, { type: "triangle", vol: 0.22 }); tone(990, 0.12, { type: "triangle", vol: 0.18, at: 0.07 }); },
+      hiddenHit() { seq([660, 880, 1320], 0.06, { type: "triangle", vol: 0.2, dur: 0.1 }); },
+      oops() { tone(440, 0.18, { type: "sawtooth", vol: 0.09, slide: 0.6 }); tone(330, 0.25, { type: "sawtooth", vol: 0.09, at: 0.15, slide: 0.6 }); },
+      heart() { tone(880, 0.1, { vol: 0.14 }); tone(1175, 0.14, { vol: 0.12, at: 0.06 }); },
+      cheese() { seq([784, 988, 1175, 1568], 0.07, { type: "triangle", vol: 0.17, dur: 0.14 }); },
+      wrongHeart() { tone(300, 0.22, { type: "square", vol: 0.07, slide: 0.7 }); },
+      passed() { tone(160, 0.3, { type: "sawtooth", vol: 0.11, slide: 0.8 }); },
+      reveal() { tone(480, 0.12, { type: "square", vol: 0.05, slide: 1.6 }); },
+      level() { seq([523, 659, 784, 1047], 0.08, { type: "triangle", vol: 0.15, dur: 0.12 }); },
+      over() { seq([523, 440, 349, 262], 0.16, { type: "triangle", vol: 0.15, dur: 0.22 }); }
+    };
+  })();
+
+  const BEAN = `<svg class="bean" viewBox="0 0 64 60" aria-hidden="true">
+    <ellipse class="shadow" cx="32" cy="57" rx="20" ry="3"/>
+    <g class="feet"><ellipse cx="22" cy="53" rx="6" ry="4"/><ellipse cx="42" cy="53" rx="6" ry="4"/></g>
+    <g class="bodyg">
+      <path class="sprout" d="M32 13 C32 8 33 5 35 3"/>
+      <path class="leaf" d="M35 4 C39 -1 47 0 48 3 C44 8 38 8 35 4 Z"/>
+      <ellipse class="body" cx="32" cy="33" rx="25" ry="21"/>
+      <ellipse class="blush" cx="16.5" cy="38" rx="4.5" ry="2.6"/>
+      <ellipse class="blush" cx="47.5" cy="38" rx="4.5" ry="2.6"/>
+      <g class="face-normal">
+        <circle class="eye" cx="24" cy="31" r="3.4"/><circle class="eye" cx="40" cy="31" r="3.4"/>
+        <circle class="glint" cx="25.2" cy="29.8" r="1.1"/><circle class="glint" cx="41.2" cy="29.8" r="1.1"/>
+        <path class="mouth" d="M28.5 37 q1.75 2 3.5 0 q1.75 2 3.5 0"/>
+      </g>
+      <g class="face-hurt">
+        <path class="line" d="M20 28 l6 3 l-6 3 M44 28 l-6 3 l6 3"/>
+        <path class="mouth" d="M28 41 q4 -3 8 0"/>
+      </g>
+      <g class="face-happy">
+        <path class="line" d="M20.5 32 q3.5 -4 7 0 M36.5 32 q3.5 -4 7 0"/>
+        <path class="mouth" d="M28 37 q4 4 8 0"/>
+      </g>
+    </g>
+  </svg>`;
+
+  const $ = id => document.getElementById(id);
+  const field = $("field");
+  const pick = a => a[Math.random() * a.length | 0];
+  let W = 0, H = 0;
+  const measure = () => { const r = field.getBoundingClientRect(); W = r.width; H = r.height; };
+  measure();
+  window.addEventListener("resize", measure);
+
+  let best = 0;
+  try { best = Number(localStorage.getItem("kongbang-best")) || 0; } catch (e) {}
+
+  let weapon = "gun";
+  let S = null;
+
+  function newState() {
+    return { score: 0, lives: MAX_LIVES, level: 1, elapsed: 0, spawnIn: 0.5, ents: [],
+      stats: { kills: 0, cheese: 0, miss: 0 }, running: true, paused: false };
+  }
+
+  function hud() {
+    $("score").textContent = S ? S.score : 0;
+    $("level").textContent = S ? S.level : 1;
+    const lives = S ? S.lives : MAX_LIVES;
+    $("lives").innerHTML = Array.from({ length: MAX_LIVES }, (_, i) => `<span class="pip${i < lives ? "" : " off"}"></span>`).join("");
+  }
+
+  function setWeapon(w) {
+    weapon = w;
+    field.classList.toggle("mode-heart", w === "heart");
+    $("toolGun").setAttribute("aria-pressed", String(w === "gun"));
+    $("toolHeart").setAttribute("aria-pressed", String(w === "heart"));
+  }
+
+  const speedFor = lvl => Math.min(0.24, 0.1 + 0.015 * (lvl - 1));
+  const gapFor = lvl => Math.max(0.45, 1.35 - 0.12 * (lvl - 1));
+
+  function spawn() {
+    const free = LANES.map((_, i) => i).filter(i => !S.ents.some(e => e.lane === i && e.state !== "dead" && e.x > 0.74));
+    if (!free.length) { S.spawnIn = 0.2; return; }
+    const lane = pick(free);
+    // Fast viewers only spawn when nobody is ahead in the lane (no overtaking).
+    const laneClear = !S.ents.some(e => e.lane === lane && !e.gone && e.state !== "dead" && e.x > 0.1);
+    const runaway = S.level > 10 && laneClear && Math.random() < RUNAWAY_RATE;
+    const r = Math.random();
+    let type, text, hidden = false;
+    if (runaway) { type = "enemy"; text = RUNAWAY_LINE; }
+    else if (r < 0.08) { type = "cheese"; text = "🧀"; }
+    else if (r < 0.20) { type = "enemy"; hidden = true; text = "콩바"; }
+    else if (r < 0.57) { type = "enemy"; text = pick(ENEMY); }
+    else { type = "ally"; text = Math.random() < ALLY_KONGBA_RATE ? "콩바" : pick(ALLY); }
+
+    const el = document.createElement("div");
+    el.className = "critter";
+    el.style.top = (LANES[lane] * 100) + "%";
+    el.style.zIndex = String(10 + lane);
+    el.style.setProperty("--d", (-Math.random() * 0.8).toFixed(2) + "s");
+    el.innerHTML = `<div class="bubble"><span class="say"></span></div>${BEAN}`;
+    el.querySelector(".say").textContent = text;
+    // Rushing viewer from level 2; the runaway always rushes, even faster.
+    const rush = runaway || (S.level >= 2 && laneClear && Math.random() < 0.12);
+    if (rush) el.classList.add("rush");
+    const ent = { el, type, hidden, runaway, revealed: false, lane, x: 1.02, state: "walk", done: false, gone: false,
+      revealX: 0.3 + Math.random() * 0.4,
+      speed: speedFor(S.level) * (0.9 + Math.random() * 0.25) * (runaway ? 2.4 : rush ? 1.8 : 1) };
+    el.style.transform = `translate(${ent.x * W}px,-100%)`;
+    el.addEventListener("pointerdown", ev => {
+      ev.stopPropagation(); ev.preventDefault();
+      if (ev.button > 0) return;
+      act(ent, weapon, ev);
+    });
+    field.appendChild(el);
+    S.ents.push(ent);
+  }
+
+  function reveal(e) {
+    e.revealed = true;
+    e.fakeLoved = false;
+    e.el.classList.remove("loved");
+    e.el.querySelector(".say").innerHTML = '콩바<span class="bibo">비보</span>';
+  }
+
+  function center(e) { return { x: e.x * W + 32, y: LANES[e.lane] * H - 34 }; }
+  function local(ev) { const r = field.getBoundingClientRect(); return { x: ev.clientX - r.left, y: ev.clientY - r.top }; }
+
+  function fx(cls, x, y, text, life, styles) {
+    const d = document.createElement("div");
+    d.className = "fx " + cls;
+    d.style.left = x + "px"; d.style.top = y + "px";
+    if (text) d.textContent = text;
+    if (styles) for (const k in styles) d.style.setProperty(k, styles[k]);
+    field.appendChild(d);
+    setTimeout(() => d.remove(), life);
+  }
+  const floatText = (p, text, cls = "") => fx("float " + cls, p.x, p.y - 40, text, 1000);
+  function hearts(p, n) {
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2, r = 30 + Math.random() * 30;
+      fx("heartbit", p.x, p.y, "💗", 950, { "--dx": Math.cos(a) * r + "px", "--dy": (Math.sin(a) * r - 25) + "px" });
+    }
+  }
+  function ouch() { field.classList.remove("ouch"); void field.offsetWidth; field.classList.add("ouch"); }
+  function banner(text) { fx("banner", 0, 0, text, 1900, { left: "50%", top: "12px" }); }
+
+  function addScore(n) { S.score = Math.max(0, S.score + n); }
+  function loseLife() { S.lives--; ouch(); hud(); if (S.lives <= 0) gameOver(); }
+
+  function act(ent, tool, ev) {
+    if (!S || !S.running || S.paused || ent.done || ent.fakeLoved) return;
+    const p = center(ent);
+    // A hidden bad viewer still saying only "콩바" counts as a good viewer.
+    const actsBad = ent.type === "enemy" && !(ent.hidden && !ent.revealed);
+    if (tool === "gun") {
+      fx("ring", local(ev).x, local(ev).y, "", 320);
+      Sfx.shot();
+      if (actsBad) {
+        const pts = ent.runaway ? 20 : ent.hidden ? 15 : 10;
+        (ent.hidden || ent.runaway ? Sfx.hiddenHit : Sfx.hit)();
+        addScore(pts); S.stats.kills++;
+        ent.done = true; ent.state = "dead";
+        ent.el.classList.add("pop");
+        fx("burst", p.x, p.y, "퍽!", 460);
+        floatText(p, ent.runaway ? `+${pts} 도망 못 가!` : ent.hidden ? `+${pts} 숨은 배드 시청자!` : `+${pts}`);
+        setTimeout(() => { ent.gone = true; ent.el.remove(); }, 460);
+      } else {
+        Sfx.oops();
+        addScore(-10); S.stats.miss++;
+        ent.done = true; ent.state = "hurt";
+        ent.el.classList.add("hurt");
+        ent.el.querySelector(".say").textContent = ent.type === "cheese" ? "🧀… 😢" : "아야… 😢";
+        floatText(p, "-10 착한 시청자예요!", "bad");
+        setTimeout(() => ent.el.classList.add("leaving"), 700);
+        loseLife();
+      }
+    } else {
+      if (ent.type === "cheese") {
+        Sfx.cheese();
+        addScore(30); S.stats.cheese++;
+        ent.done = true; ent.el.classList.add("loved");
+        ent.el.querySelector(".say").textContent = "🧀💗";
+        hearts(p, 7); floatText(p, "+30 치즈 사랑해요", "love");
+      } else if (!actsBad) {
+        // Good viewers (and hidden ones still saying "콩바") smile back. A hidden one stays
+        // in play and will still turn into "콩바비보" later.
+        Sfx.heart();
+        ent.el.classList.add("loved");
+        if (ent.type === "ally") ent.done = true; else ent.fakeLoved = true;
+        hearts(p, 3);
+      } else {
+        Sfx.wrongHeart();
+        addScore(-30);
+        hearts(p, 1); floatText(p, "-30 배드 시청자한테 하트?!", "bad");
+      }
+    }
+    hud();
+  }
+
+  function exit(e) {
+    e.gone = true; e.el.remove();
+    if (e.type === "enemy" && !e.done) {
+      Sfx.passed();
+      floatText({ x: 90, y: LANES[e.lane] * H - 30 }, "배드 시청자가 지나갔어요", "bad");
+      loseLife();
+    }
+  }
+
+  function update(dt) {
+    S.elapsed += dt;
+    const lvl = 1 + Math.floor(S.elapsed / 18);
+    if (lvl !== S.level) { S.level = lvl; hud(); banner(`레벨 ${lvl} · 채팅이 빨라져요!`); Sfx.level(); }
+    S.spawnIn -= dt;
+    if (S.spawnIn <= 0) { spawn(); S.spawnIn = gapFor(S.level) * (0.75 + Math.random() * 0.5); }
+    for (const e of S.ents) {
+      if (e.gone || e.state === "dead") continue;
+      e.x -= e.speed * dt * (e.state === "hurt" ? 1.8 : 1);
+      if (e.hidden && !e.revealed && !e.done && e.x * W + 32 <= W * e.revealX) reveal(e);
+      e.el.style.transform = `translate(${e.x * W}px,-100%)`;
+      if (e.x * W < -120) { exit(e); if (!S.running) return; }
+    }
+    S.ents = S.ents.filter(e => !e.gone);
+  }
+
+  let last = 0;
+  function frame(ts) {
+    const dt = last ? Math.min(0.05, (ts - last) / 1000) : 0;
+    last = ts;
+    if (S && S.running && !S.paused) update(dt);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+
+  function clearField() { field.querySelectorAll(".critter, .fx").forEach(n => n.remove()); }
+
+  function start() {
+    clearField(); measure();
+    S = newState(); hud();
+    Sfx.unlock();
+    $("startOverlay").hidden = true; $("overOverlay").hidden = true; $("pauseOverlay").hidden = true;
+    setWeapon("gun");
+  }
+
+  function gameOver() {
+    S.running = false;
+    Sfx.over();
+    const isBest = S.score > best;
+    if (isBest) { best = S.score; try { localStorage.setItem("kongbang-best", String(best)); } catch (e) {} }
+    $("overTitle").textContent = isBest && best > 0 ? "새 최고 기록!" : "멘탈이 바닥났어요";
+    $("bestLine").textContent = `이번 판 ${S.score}점 · 최고 기록 ${best}점`;
+    $("shareText").hidden = true;
+    shareMsg(DEFAULT_SHARE_MSG);
+    drawCard();
+    setTimeout(() => { $("overOverlay").hidden = false; $("againBtn").focus(); }, 500);
+  }
+
+  /* ---------- Score card ---------- */
+  const DEFAULT_SHARE_MSG = "카드를 길게 누르거나(휴대폰) 우클릭(PC)해서 저장·복사할 수도 있어요.";
+  const CARD_FONT = '"Jua", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif';
+  const cardCanvas = document.createElement("canvas");
+  cardCanvas.width = 800; cardCanvas.height = 1000;
+  let cardBlob = null, cardToken = 0, downloads = null;
+  try { $("nameInput").value = localStorage.getItem("kongbang-name") || ""; } catch (e) {}
+
+  const shareMsg = t => { $("shareMsg").textContent = t; };
+  const cardName = () => $("nameInput").value.replace(/\s+/g, " ").trim().slice(0, 12);
+  function titleFor(score) {
+    if (score >= 2000) return "콩방의 지배자";
+    if (score >= 1500) return "전설의 콩방 지킴이";
+    if (score >= 1000) return "든든한 콩방 지킴이";
+    return "콩방 새싹 지킴이";
+  }
+
+  function roundRect(c, x, y, w, h, r) {
+    c.beginPath(); c.moveTo(x + r, y);
+    c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r);
+    c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath();
+  }
+
+  function drawBean(c, cx, cy, s, mood) {
+    const dot = (x, y, rx, ry) => { c.beginPath(); c.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2); };
+    c.save(); c.translate(cx - 32 * s, cy - 30 * s); c.scale(s, s);
+    c.lineCap = "round"; c.lineJoin = "round";
+    c.fillStyle = "rgba(61,51,84,.14)"; dot(32, 57, 20, 3); c.fill();
+    c.fillStyle = "#7A2E3E"; dot(22, 53, 6, 4); c.fill(); dot(42, 53, 6, 4); c.fill();
+    c.strokeStyle = "#4F8F3A"; c.lineWidth = 2.5;
+    c.beginPath(); c.moveTo(32, 13); c.bezierCurveTo(32, 8, 33, 5, 35, 3); c.stroke();
+    c.fillStyle = "#96CF72"; c.strokeStyle = "#3D3354"; c.lineWidth = 2;
+    c.beginPath(); c.moveTo(35, 4); c.bezierCurveTo(39, -1, 47, 0, 48, 3); c.bezierCurveTo(44, 8, 38, 8, 35, 4); c.closePath(); c.fill(); c.stroke();
+    c.fillStyle = "#B9566A"; c.lineWidth = 2.5; dot(32, 33, 25, 21); c.fill(); c.stroke();
+    c.fillStyle = "rgba(255,179,196,.75)"; dot(16.5, 38, 4.5, 2.6); c.fill(); dot(47.5, 38, 4.5, 2.6); c.fill();
+    c.strokeStyle = "#2A1A22"; c.fillStyle = "#2A1A22"; c.lineWidth = 2;
+    if (mood === "happy") {
+      c.beginPath(); c.moveTo(20.5, 32); c.quadraticCurveTo(24, 28, 27.5, 32);
+      c.moveTo(36.5, 32); c.quadraticCurveTo(40, 28, 43.5, 32); c.stroke();
+      c.beginPath(); c.moveTo(28, 37); c.quadraticCurveTo(32, 41, 36, 37); c.stroke();
+    } else {
+      dot(24, 31, 3.4, 3.4); c.fill(); dot(40, 31, 3.4, 3.4); c.fill();
+      c.fillStyle = "#fff"; dot(25.2, 29.8, 1.1, 1.1); c.fill(); dot(41.2, 29.8, 1.1, 1.1); c.fill();
+      c.beginPath(); c.moveTo(28.5, 37); c.quadraticCurveTo(30.25, 39, 32, 37); c.quadraticCurveTo(33.75, 39, 35.5, 37); c.stroke();
+    }
+    c.restore();
+  }
+
+  async function drawCard() {
+    if (!S) return;
+    const token = ++cardToken;
+    try { await document.fonts.load(`40px ${CARD_FONT}`); } catch (e) {}
+    if (token !== cardToken) return;
+    const c = cardCanvas.getContext("2d"), CW = 800, CH = 1000, F = CARD_FONT;
+    const bg = c.createLinearGradient(0, 0, CW, CH);
+    bg.addColorStop(0, "#FBF1FF"); bg.addColorStop(1, "#E6F5FF");
+    c.fillStyle = bg; c.fillRect(0, 0, CW, CH);
+    c.fillStyle = "rgba(61,51,84,.07)";
+    for (let y = 20; y < CH; y += 36) for (let x = 20; x < CW; x += 36) { c.beginPath(); c.arc(x, y, 2.5, 0, Math.PI * 2); c.fill(); }
+
+    c.fillStyle = "#3D3354"; roundRect(c, 40, 50, 720, 910, 44); c.fill();
+    c.fillStyle = "#FFFFFF"; roundRect(c, 40, 40, 720, 904, 44); c.fill();
+    c.save(); roundRect(c, 40, 40, 720, 904, 44); c.clip();
+    c.fillStyle = "#FFD45C"; c.fillRect(40, 40, 720, 120);
+    c.fillStyle = "#3D3354"; c.fillRect(40, 160, 720, 6);
+    c.restore();
+    c.lineWidth = 6; c.strokeStyle = "#3D3354"; roundRect(c, 40, 40, 720, 904, 44); c.stroke();
+
+    c.textAlign = "center"; c.textBaseline = "middle";
+    c.fillStyle = "#3D3354"; c.font = `56px ${F}`; c.fillText("콩방 지킴이", 400, 102);
+
+    drawBean(c, 245, 305, 2.4, "happy");
+    drawBean(c, 555, 305, 2.4, "happy");
+    drawBean(c, 400, 285, 3.1, "normal");
+
+    c.fillStyle = "#6F6688"; c.font = `32px ${F}`; c.fillText(titleFor(S.score), 400, 430);
+    c.fillStyle = "#3D3354"; c.font = `46px ${F}`; c.fillText(cardName() || "익명의 지킴이", 400, 486);
+
+    const sc = String(S.score);
+    c.font = `150px ${F}`; c.fillStyle = "#B9566A"; c.fillText(sc, 400, 610);
+    const sw = c.measureText(sc).width;
+    c.textAlign = "left"; c.font = `50px ${F}`; c.fillText("점", 400 + sw / 2 + 8, 645);
+    c.textAlign = "center";
+    c.fillStyle = "#3D3354"; c.font = `32px ${F}`; c.fillText(`레벨 ${S.level}까지 버텼어요`, 400, 712);
+
+    const stats = [[S.stats.kills + "명", "배드 시청자 퇴치"], [S.stats.cheese + "번", "🧀에게 보낸 하트"], [S.stats.miss + "번", "실수한 횟수"]];
+    stats.forEach(([val, lab], i) => {
+      const x = 80 + i * 220;
+      c.lineWidth = 4; c.strokeStyle = "#D9D3EE"; roundRect(c, x, 755, 200, 115, 24); c.stroke();
+      c.fillStyle = "#3D3354"; c.font = `44px ${F}`; c.fillText(val, x + 100, 798);
+      c.fillStyle = "#6F6688"; c.font = `22px ${F}`; c.fillText(lab, x + 100, 845);
+    });
+
+    const d = new Date();
+    c.fillStyle = "#6F6688"; c.font = `24px ${F}`;
+    c.fillText(`${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()} · 콩하! 오늘도 방송 지켰어요`, 400, 912);
+
+    $("cardImg").src = cardCanvas.toDataURL("image/png");
+    const blob = await new Promise(r => cardCanvas.toBlob(r, "image/png"));
+    if (token === cardToken) cardBlob = blob;
+  }
+
+  let nameTimer = 0;
+  $("nameInput").addEventListener("input", () => {
+    clearTimeout(nameTimer);
+    nameTimer = setTimeout(() => {
+      try { localStorage.setItem("kongbang-name", cardName()); } catch (e) {}
+      drawCard();
+    }, 200);
+  });
+  $("nameForm").addEventListener("submit", ev => { ev.preventDefault(); $("nameInput").blur(); });
+
+  const resultText = () => [
+    `🫘 콩방 지킴이 ${S.score}점 (레벨 ${S.level})`,
+    `배드 시청자 ${S.stats.kills}명 퇴치 · 🧀에게 하트 ${S.stats.cheese}번`,
+    `${titleFor(S.score)}${cardName() ? " " + cardName() : ""}`
+  ].join("\n");
+
+  $("copyTextBtn").addEventListener("click", () => {
+    if (!S) return;
+    const t = resultText();
+    const fallback = () => {
+      const ta = $("shareText"); ta.value = t; ta.hidden = false; ta.focus(); ta.select();
+      shareMsg("자동 복사가 막혀 있어요. 위 글이 선택되어 있으니 복사(Ctrl+C 또는 길게 누르기)해 주세요.");
+    };
+    try {
+      navigator.clipboard.writeText(t).then(() => shareMsg("결과 글을 복사했어요! 채팅이나 커뮤니티에 붙여넣기 하세요."), fallback);
+    } catch (e) { fallback(); }
+  });
+
+  $("copyImgBtn").addEventListener("click", () => {
+    const fail = () => shareMsg("이 화면에서는 이미지 복사가 막혀 있어요. 카드를 길게 누르거나 우클릭해서 복사해 주세요.");
+    try {
+      if (!cardBlob || !window.ClipboardItem || !navigator.clipboard.write) return fail();
+      navigator.clipboard.write([new ClipboardItem({ "image/png": cardBlob })])
+        .then(() => shareMsg("카드 이미지를 복사했어요! 원하는 곳에 붙여넣기 하세요."), fail);
+    } catch (e) { fail(); }
+  });
+
+  $("saveBtn").addEventListener("click", async () => {
+    if (!downloads || !cardBlob || !S) return;
+    try {
+      await downloads.save({ filename: `콩방지킴이_${S.score}점.png`, data: cardBlob });
+      shareMsg("카드 이미지를 저장했어요!");
+    } catch (e) {
+      const code = e && e.code;
+      if (code === "declined") return;
+      if (code === "rate_limited") { shareMsg("저장 창이 이미 열려 있어요. 잠시 후 다시 눌러 주세요."); return; }
+      $("saveBtn").hidden = true;
+      shareMsg("여기서는 저장 버튼을 쓸 수 없어요. 카드를 길게 누르거나 우클릭해서 저장해 주세요.");
+    }
+  });
+
+  (async () => {
+    try { downloads = window.claude && window.claude.use ? await window.claude.use("downloads") : null; } catch (e) { downloads = null; }
+    $("saveBtn").hidden = !downloads;
+  })();
+
+  function pause() { if (S && S.running && !S.paused) { S.paused = true; $("pauseOverlay").hidden = false; } }
+  function resume() { if (S && S.paused) { S.paused = false; last = 0; $("pauseOverlay").hidden = true; } }
+
+  field.addEventListener("pointerdown", ev => {
+    if (!S || !S.running || S.paused || ev.target.closest(".overlay")) return;
+    const p = local(ev);
+    if (ev.button > 0) return;
+    if (weapon === "heart") hearts(p, 1); else { fx("ring", p.x, p.y, "", 320); Sfx.shot(); }
+  });
+  field.addEventListener("contextmenu", ev => ev.preventDefault());
+  // Blur after a click so the space bar keeps toggling weapons instead of re-pressing the button.
+  $("toolGun").addEventListener("click", ev => { setWeapon("gun"); ev.currentTarget.blur(); });
+  $("toolHeart").addEventListener("click", ev => { setWeapon("heart"); ev.currentTarget.blur(); });
+  const syncMute = () => {
+    $("muteBtn").textContent = Sfx.muted ? "🔇" : "🔊";
+    $("muteBtn").setAttribute("aria-label", Sfx.muted ? "효과음 켜기" : "효과음 끄기");
+  };
+  $("muteBtn").addEventListener("click", ev => {
+    Sfx.setMuted(!Sfx.muted); syncMute(); ev.currentTarget.blur();
+    if (!Sfx.muted) Sfx.heart();
+  });
+  syncMute();
+  $("startBtn").addEventListener("click", start);
+  $("againBtn").addEventListener("click", start);
+  $("resumeBtn").addEventListener("click", resume);
+  document.addEventListener("keydown", ev => {
+    if (ev.target instanceof HTMLInputElement) return;
+    if (ev.code === "Space" && !(ev.target instanceof HTMLButtonElement)) { ev.preventDefault(); setWeapon(weapon === "gun" ? "heart" : "gun"); }
+    else if (ev.key === "p" || ev.key === "P" || ev.key === "Escape") { S && S.paused ? resume() : pause(); }
+  });
+  document.addEventListener("visibilitychange", () => { if (document.hidden) pause(); });
+
+  hud();
+})();
+</script>
+<script>
+(() => {
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js").catch(() => {});
+  const btn = document.getElementById("installBtn"), tip = document.getElementById("installTip");
+  const installed = matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+  if (installed || !btn) return;
+  let deferred = null;
+  addEventListener("beforeinstallprompt", e => { e.preventDefault(); deferred = e; btn.hidden = false; });
+  btn.addEventListener("click", async () => {
+    if (!deferred) return;
+    deferred.prompt();
+    try { await deferred.userChoice; } catch (e) {}
+    deferred = null; btn.hidden = true;
+  });
+  addEventListener("appinstalled", () => { btn.hidden = true; });
+  const ios = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  if (ios && tip) tip.hidden = false;
+})();
+</script>
+</body>
+</html>

@@ -496,12 +496,13 @@ kbd { font-family: var(--font-body); font-size: 12px; border: 1.5px solid var(--
   const gapFor = lvl => Math.max(0.45, 1.35 - 0.12 * (lvl - 1));
 
   function spawn() {
-    if (Math.random() < BOMB_RATE && !S.ents.some(e => e.type === "bomb" && !e.done)) plantBomb();
-    const free = LANES.map((_, i) => i).filter(i => !S.ents.some(e => e.lane === i && e.type !== "bomb" && e.state !== "dead" && e.x > 0.74));
+    const free = LANES.map((_, i) => i).filter(i => !S.ents.some(e => e.lane === i && e.state !== "dead" && e.x > 0.74));
     if (!free.length) { S.spawnIn = 0.2; return; }
     const lane = pick(free);
     // Fast viewers only spawn when nobody is ahead in the lane (no overtaking).
-    const laneClear = !S.ents.some(e => e.lane === lane && e.type !== "bomb" && !e.gone && e.state !== "dead" && e.x > 0.1);
+    // A rotten-bean bomb walks in like everyone else, one at a time.
+    if (Math.random() < BOMB_RATE && !S.ents.some(e => e.type === "bomb" && !e.done)) { spawnBomb(lane); return; }
+    const laneClear = !S.ents.some(e => e.lane === lane && !e.gone && e.state !== "dead" && e.x > 0.1);
     const runaway = S.level > 10 && laneClear && Math.random() < RUNAWAY_RATE;
     const r = Math.random();
     let type, text, hidden = false;
@@ -534,14 +535,15 @@ kbd { font-family: var(--font-body); font-size: 12px; border: 1.5px solid var(--
     S.ents.push(ent);
   }
 
-  function plantBomb() {
-    const lane = Math.random() * LANES.length | 0;
+  function spawnBomb(lane) {
     const el = document.createElement("div");
     el.className = "critter bomb";
     el.style.top = (LANES[lane] * 100) + "%";
-    el.style.zIndex = String(20 + lane); // above walkers so it can always be clicked
+    el.style.zIndex = String(10 + lane);
+    el.style.setProperty("--d", (-Math.random() * 0.8).toFixed(2) + "s");
     el.innerHTML = `<div class="bubble"><span class="say"></span></div>${BOMB}`;
-    const ent = { el, type: "bomb", lane, x: 0.2 + Math.random() * 0.5, fuse: BOMB_FUSE, state: "bomb", done: false, gone: false };
+    const ent = { el, type: "bomb", lane, x: 1.02, fuse: BOMB_FUSE, state: "walk", done: false, gone: false,
+      speed: speedFor(S.level) * (0.9 + Math.random() * 0.25) };
     el.querySelector(".say").textContent = "💣 " + BOMB_FUSE.toFixed(1);
     el.style.transform = `translate(${ent.x * W}px,-100%)`;
     el.addEventListener("pointerdown", ev => {
@@ -564,9 +566,9 @@ kbd { font-family: var(--font-body); font-size: 12px; border: 1.5px solid var(--
       if (e === b || e.gone || e.done || e.type === "bomb") continue;
       const p = center(e);
       if (Math.hypot(p.x - c.x, p.y - c.y) > R) continue;
-      // Everyone nearby is knocked out; only good viewers cost points
-      // (a hidden bad viewer still saying "콩바" is not a good viewer).
-      if (e.type === "ally" || e.type === "cheese") lost++;
+      // Everyone nearby is knocked out; only good viewers cost points.
+      // A hidden bad viewer still saying "콩바" counts as a good viewer here.
+      if (e.type === "ally" || e.type === "cheese" || (e.hidden && !e.revealed)) lost++;
       e.done = true; e.state = "dead";
       e.el.classList.add("hurt");
       e.el.querySelector(".say").textContent = "😵";
@@ -695,7 +697,6 @@ kbd { font-family: var(--font-body); font-size: 12px; border: 1.5px solid var(--
         if (Math.ceil(e.fuse * 4) !== before) Sfx.fuse();
         e.el.querySelector(".say").textContent = "💣 " + e.fuse.toFixed(1);
         e.el.classList.toggle("urgent", e.fuse < 0.8);
-        continue;
       }
       e.x -= e.speed * dt * (e.state === "hurt" ? 1.8 : 1);
       if (e.hidden && !e.revealed && !e.done && e.x * W + 32 <= W * e.revealX) reveal(e);

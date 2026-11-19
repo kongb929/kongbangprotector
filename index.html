@@ -133,6 +133,18 @@ body {
 .critter.leaving { transition: opacity .5s; opacity: 0; }
 @keyframes shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
 .critter.pop .bean { animation: pop .45s forwards; transform-origin: 50% 70%; }
+/* Item viewers and active effects */
+.bubble.sparkle { border-color: #FFB020; animation: sparkle .55s ease-in-out infinite alternate; }
+.bubble.sparkle::after { border-color: #FFB020; }
+@keyframes sparkle {
+  from { box-shadow: 0 2px 0 var(--ink), 0 0 0 0 rgba(255,196,40,.9); border-color: #FFB020; }
+  to { box-shadow: 0 2px 0 var(--ink), 0 0 12px 5px rgba(255,196,40,.85); border-color: #FF7FA8; }
+}
+.field.magnify .critter.bad .bubble, .field.magnify .critter.bad .bubble::after { background: #FFD9D9; border-color: var(--red); }
+.field.magnify .critter.bad .bubble { color: var(--red); }
+.buffs { position: absolute; left: 10px; top: 10px; z-index: 55; display: flex; gap: 6px; pointer-events: none; }
+.buffs span { background: var(--card); border: 2px solid var(--ink); border-radius: 999px; padding: 2px 10px;
+  font-family: var(--font-display); font-size: 16px; box-shadow: 0 2px 0 var(--ink); }
 /* Rotten-bean bomb */
 .critter.bomb .bean .body { fill: #7E7A3C; }
 .critter.bomb .bean .spot { fill: #5B5A28; opacity: .8; }
@@ -277,6 +289,8 @@ kbd { font-family: var(--font-body); font-size: 12px; border: 1.5px solid var(--
     <div class="lane" style="top:64%"></div>
     <div class="lane" style="top:92%"></div>
 
+    <div class="buffs" id="buffs" aria-live="polite"></div>
+
     <div class="overlay" id="startOverlay">
       <div class="panel">
         <h1>콩방 지킴이</h1>
@@ -297,6 +311,11 @@ kbd { font-family: var(--font-body); font-size: 12px; border: 1.5px solid var(--
             <div class="eg"><span class="chip">콩바</span><span class="chip">→</span><span class="chip">콩바비보</span></div>
             <span class="pts">페이크 무빙을 하는 시청자예요. +15점</span>
             <span class="pts">끝까지 "콩바"인 시청자는 방송을 잘 본 착한 시청자예요. 쏘지 말아요!</span>
+          </div>
+          <div class="rule">
+            <b>✨ 아이템 시청자에겐 하트</b>
+            <div class="eg"><span class="chip">🍔</span><span class="chip">⏳</span><span class="chip">🔍</span></div>
+            <span class="pts">🍔 멘탈 회복 · ⏳ 4초 동안 느리게<br>🔍 4초 동안 배드 시청자가 빨갛게</span>
           </div>
           <div class="rule">
             <b>💣 썩은 콩 폭탄</b>
@@ -365,6 +384,20 @@ kbd { font-family: var(--font-body); font-size: 12px; border: 1.5px solid var(--
   // Rotten-bean bomb: planted on a timer (every 13–15 s, ~14 s on average) so it does not
   // get more frequent as spawns speed up; explodes after 2 s unless shot.
   const bombGap = () => 13 + Math.random() * 2;
+  // Item viewers: from level 4, one every 20–25 s. Send a heart to use the item; shooting just loses it.
+  const ITEMS = {
+    burger: { icon: "🍔", weight: 0.25 },
+    slow: { icon: "⏳", weight: 0.375 },
+    magnify: { icon: "🔍", weight: 0.375 }
+  };
+  const ITEM_LEVEL = 4;
+  const itemGap = () => 20 + Math.random() * 5;
+  const EFFECT_SECS = 4;
+  function pickItem() {
+    let r = Math.random();
+    for (const k in ITEMS) { r -= ITEMS[k].weight; if (r < 0) return k; }
+    return "magnify";
+  }
   const BOMB_FUSE = 2;
   const BOMB_PENALTY = 10; // points lost per good viewer caught in the blast
   const LANES = [0.36, 0.64, 0.92];
@@ -414,6 +447,8 @@ kbd { font-family: var(--font-body); font-size: 12px; border: 1.5px solid var(--
       passed() { tone(160, 0.3, { type: "sawtooth", vol: 0.11, slide: 0.8 }); },
       reveal() { tone(480, 0.12, { type: "square", vol: 0.05, slide: 1.6 }); },
       level() { seq([523, 659, 784, 1047], 0.08, { type: "triangle", vol: 0.15, dur: 0.12 }); },
+      item() { seq([659, 880, 1109, 1319, 1760], 0.05, { type: "sine", vol: 0.16, dur: 0.12 }); },
+      itemLost() { tone(500, 0.2, { type: "triangle", vol: 0.1, slide: 0.5 }); },
       defuse() { seq([523, 784, 1047], 0.06, { type: "triangle", vol: 0.18, dur: 0.1 }); },
       fuse() { tone(1400, 0.03, { type: "square", vol: 0.03 }); },
       boom() { noise(0.6, 0.45); tone(120, 0.5, { type: "sawtooth", vol: 0.16, slide: 0.3 }); },
@@ -476,7 +511,8 @@ kbd { font-family: var(--font-body); font-size: 12px; border: 1.5px solid var(--
 
   function newState() {
     return { score: 0, lives: MAX_LIVES, level: 1, elapsed: 0, spawnIn: 0.5, bombIn: bombGap(), ents: [],
-      stats: { kills: 0, cheese: 0, miss: 0 }, running: true, paused: false };
+      itemIn: null, itemPending: false, slowT: 0, magT: 0,
+      stats: { kills: 0, cheese: 0, miss: 0, items: 0 }, running: true, paused: false };
   }
 
   function hud() {
@@ -504,8 +540,9 @@ kbd { font-family: var(--font-body); font-size: 12px; border: 1.5px solid var(--
     const laneClear = !S.ents.some(e => e.lane === lane && e.type !== "bomb" && !e.gone && e.state !== "dead" && e.x > 0.1);
     const runaway = S.level > 10 && laneClear && Math.random() < RUNAWAY_RATE;
     const r = Math.random();
-    let type, text, hidden = false;
-    if (runaway) { type = "enemy"; text = RUNAWAY_LINE; }
+    let type, text, hidden = false, item = null;
+    if (S.itemPending && !runaway) { item = pickItem(); S.itemPending = false; type = "item"; text = ITEMS[item].icon; }
+    else if (runaway) { type = "enemy"; text = RUNAWAY_LINE; }
     else if (r < 0.08) { type = "cheese"; text = "🧀"; }
     else if (r < 0.20) { type = "enemy"; hidden = true; text = "콩바"; }
     else if (r < 0.57) { type = "enemy"; text = pick(ENEMY); }
@@ -518,10 +555,12 @@ kbd { font-family: var(--font-body); font-size: 12px; border: 1.5px solid var(--
     el.style.setProperty("--d", (-Math.random() * 0.8).toFixed(2) + "s");
     el.innerHTML = `<div class="bubble"><span class="say"></span></div>${BEAN}`;
     el.querySelector(".say").textContent = text;
+    if (item) el.querySelector(".bubble").classList.add("sparkle");
+    if (type === "enemy") el.classList.add("bad"); // used by the magnifier item
     // Rushing viewer from level 2; the runaway always rushes, even faster.
-    const rush = runaway || (S.level >= 2 && laneClear && Math.random() < RUSH_RATE);
+    const rush = runaway || (!item && S.level >= 2 && laneClear && Math.random() < RUSH_RATE);
     if (rush) el.classList.add("rush");
-    const ent = { el, type, hidden, runaway, revealed: false, lane, x: 1.02, state: "walk", done: false, gone: false,
+    const ent = { el, type, item, hidden, runaway, revealed: false, lane, x: 1.02, state: "walk", done: false, gone: false,
       revealX: 0.3 + Math.random() * 0.4,
       speed: speedFor(S.level) * (0.9 + Math.random() * 0.25) * (runaway ? 2.4 : rush ? 1.8 : 1) };
     el.style.transform = `translate(${ent.x * W}px,-100%)`;
@@ -567,7 +606,7 @@ kbd { font-family: var(--font-body); font-size: 12px; border: 1.5px solid var(--
       if (Math.hypot(p.x - c.x, p.y - c.y) > R) continue;
       // Everyone nearby is knocked out; only good viewers cost points.
       // A hidden bad viewer still saying "콩바" counts as a good viewer here.
-      if (e.type === "ally" || e.type === "cheese" || (e.hidden && !e.revealed)) lost++;
+      if (e.type === "ally" || e.type === "cheese" || e.type === "item" || (e.hidden && !e.revealed)) lost++;
       e.done = true; e.state = "dead";
       e.el.classList.add("hurt");
       e.el.querySelector(".say").textContent = "😵";
@@ -577,6 +616,30 @@ kbd { font-family: var(--font-body); font-size: 12px; border: 1.5px solid var(--
     if (lost) { addScore(-BOMB_PENALTY * lost); floatText(c, `-${BOMB_PENALTY * lost} 착한 시청자 ${lost}명이 쓰러졌어요`, "bad"); }
     else floatText(c, "휴, 아무도 안 다쳤어요", "bad");
     hud();
+  }
+
+  function useItem(kind, p) {
+    S.stats.items++;
+    Sfx.item();
+    if (kind === "burger") {
+      banner("멘탈 회복!");
+      if (S.lives < MAX_LIVES) { S.lives++; floatText(p, "멘탈 +1", "love"); }
+      else { addScore(30); floatText(p, "+30 멘탈 가득!", "love"); }
+    } else if (kind === "slow") {
+      S.slowT = EFFECT_SECS; banner(`슬로우 ${EFFECT_SECS}초!`);
+    } else {
+      S.magT = EFFECT_SECS; field.classList.add("magnify"); banner(`돋보기 ${EFFECT_SECS}초!`);
+    }
+    buffs();
+  }
+
+  let buffsText = "";
+  function buffs() {
+    const parts = [];
+    if (S && S.slowT > 0) parts.push(`⏳ ${S.slowT.toFixed(1)}`);
+    if (S && S.magT > 0) parts.push(`🔍 ${S.magT.toFixed(1)}`);
+    const html = parts.map(t => `<span>${t}</span>`).join("");
+    if (html !== buffsText) { buffsText = html; $("buffs").innerHTML = html; }
   }
 
   function reveal(e) {
@@ -623,6 +686,28 @@ kbd { font-family: var(--font-body); font-size: 12px; border: 1.5px solid var(--
       fx("burst", p.x, p.y, "해체!", 460);
       floatText(p, "폭탄 해체!");
       setTimeout(() => { ent.gone = true; ent.el.remove(); }, 460);
+      return;
+    }
+    if (ent.type === "item") {
+      ent.done = true;
+      const icon = ITEMS[ent.item].icon;
+      ent.el.querySelector(".bubble").classList.remove("sparkle");
+      if (tool === "heart") {
+        ent.el.classList.add("loved");
+        ent.el.querySelector(".say").textContent = icon + "💗";
+        hearts(p, 5);
+        useItem(ent.item, p);
+      } else {
+        // Shooting an item viewer costs nothing, but the item is lost.
+        fx("ring", local(ev).x, local(ev).y, "", 320);
+        Sfx.shot(); Sfx.itemLost();
+        ent.state = "hurt";
+        ent.el.classList.add("hurt");
+        ent.el.querySelector(".say").textContent = icon + " 😢";
+        floatText(p, "아이템을 놓쳤어요", "bad");
+        setTimeout(() => ent.el.classList.add("leaving"), 700);
+      }
+      hud();
       return;
     }
     // A hidden bad viewer still saying only "콩바" counts as a good viewer.
@@ -685,7 +770,17 @@ kbd { font-family: var(--font-body); font-size: 12px; border: 1.5px solid var(--
     S.elapsed += dt;
     const lvl = 1 + Math.floor(S.elapsed / 18);
     if (lvl !== S.level) { S.level = lvl; hud(); banner(`레벨 ${lvl} · 채팅이 빨라져요!`); Sfx.level(); }
-    S.spawnIn -= dt;
+    // Active item effects.
+    const slow = S.slowT > 0 ? 0.5 : 1;
+    if (S.slowT > 0) S.slowT = Math.max(0, S.slowT - dt);
+    if (S.magT > 0) { S.magT = Math.max(0, S.magT - dt); if (!S.magT) field.classList.remove("magnify"); }
+    buffs();
+    if (S.level >= ITEM_LEVEL) {
+      if (S.itemIn === null) S.itemIn = 3; // first item viewer shortly after reaching level 4
+      S.itemIn -= dt;
+      if (S.itemIn <= 0) { S.itemPending = true; S.itemIn = itemGap(); }
+    }
+    S.spawnIn -= dt * slow;
     if (S.spawnIn <= 0) { spawn(); S.spawnIn = gapFor(S.level) * (0.75 + Math.random() * 0.5); }
     S.bombIn -= dt;
     if (S.bombIn <= 0) { plantBomb(); S.bombIn = bombGap(); }
@@ -700,7 +795,7 @@ kbd { font-family: var(--font-body); font-size: 12px; border: 1.5px solid var(--
         e.el.classList.toggle("urgent", e.fuse < 0.8);
         continue;
       }
-      e.x -= e.speed * dt * (e.state === "hurt" ? 1.8 : 1);
+      e.x -= e.speed * dt * slow * (e.state === "hurt" ? 1.8 : 1);
       if (e.hidden && !e.revealed && !e.done && e.x * W + 32 <= W * e.revealX) reveal(e);
       e.el.style.transform = `translate(${e.x * W}px,-100%)`;
       if (e.x * W < -120) { exit(e); if (!S.running) return; }
@@ -722,6 +817,7 @@ kbd { font-family: var(--font-body); font-size: 12px; border: 1.5px solid var(--
   function start() {
     clearField(); measure();
     S = newState(); hud();
+    field.classList.remove("magnify"); buffs();
     Sfx.unlock();
     $("startOverlay").hidden = true; $("overOverlay").hidden = true; $("pauseOverlay").hidden = true;
     setWeapon("gun");
@@ -751,9 +847,9 @@ kbd { font-family: var(--font-body); font-size: 12px; border: 1.5px solid var(--
   const shareMsg = t => { $("shareMsg").textContent = t; };
   const cardName = () => $("nameInput").value.replace(/\s+/g, " ").trim().slice(0, 12);
   function titleFor(score) {
-    if (score >= 2000) return "콩방의 지배자";
-    if (score >= 1500) return "전설의 콩방 지킴이";
-    if (score >= 1000) return "든든한 콩방 지킴이";
+    if (score >= 1800) return "콩방의 지배자";
+    if (score >= 1200) return "전설의 콩방 지킴이";
+    if (score >= 800) return "든든한 콩방 지킴이";
     return "콩방 새싹 지킴이";
   }
 

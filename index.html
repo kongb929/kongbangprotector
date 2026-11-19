@@ -310,7 +310,7 @@ kbd { font-family: var(--font-body); font-size: 12px; border: 1.5px solid var(--
           </div>
         </div>
         <p class="hint">총/하트 전환은 아래 버튼이나 <kbd>스페이스</kbd> 바로 해요.<br>끝나면 점수 카드를 저장해서 자랑할 수 있어요.</p>
-        <div class="row"><button class="btn" id="startBtn" type="button">방송 지키러 가기</button><button class="btn" id="installBtn" type="button" hidden style="background:#fff">📲 앱으로 설치</button></div><p class="hint" id="installTip" hidden>아이폰·아이패드는 공유 버튼 → "홈 화면에 추가"를 누르면 앱처럼 설치돼요.</p>
+        <div class="row"><button class="btn" id="startBtn" type="button">방송 지키러 가기</button><button class="btn" id="installBtn" type="button" style="background:#fff">📲 앱으로 설치</button></div><p class="hint" id="installTip" hidden>아이폰·아이패드는 공유 버튼 → "홈 화면에 추가"를 누르면 앱처럼 설치돼요.</p>
       </div>
     </div>
 
@@ -956,18 +956,36 @@ kbd { font-family: var(--font-body); font-size: 12px; border: 1.5px solid var(--
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js").catch(() => {});
   const btn = document.getElementById("installBtn"), tip = document.getElementById("installTip");
   const installed = matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  if (installed || !btn) return;
+  if (!btn) return;
+  if (installed) { btn.hidden = true; return; }
+  // The button is always shown. Where the browser offers its own install prompt we use it;
+  // everywhere else (iPhone, in-app browsers, prompt not ready yet) we explain how to install.
+  btn.hidden = false;
   let deferred = null;
-  addEventListener("beforeinstallprompt", e => { e.preventDefault(); deferred = e; btn.hidden = false; });
+  addEventListener("beforeinstallprompt", e => { e.preventDefault(); deferred = e; });
+  const ua = navigator.userAgent;
+  const ios = /iphone|ipad|ipod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const inApp = /KAKAOTALK|Instagram|FBAN|FBAV|NAVER|Line\/|DaumApps|everytimeApp/i.test(ua);
+  const android = /android/i.test(ua);
+  function howTo() {
+    if (inApp) return "지금은 앱 안의 브라우저라 설치가 안 돼요. 오른쪽 위(또는 아래) 메뉴에서 \"다른 브라우저로 열기\"를 눌러 " + (ios ? "사파리" : "크롬") + "로 연 다음 설치해 주세요.";
+    if (ios) return "사파리 아래쪽 공유 버튼(□↑)을 누르고 \"홈 화면에 추가\"를 고르면 앱처럼 설치돼요.";
+    if (/SamsungBrowser/i.test(ua)) return "아래쪽 메뉴(≡)에서 \"현재 페이지 추가\" → \"홈 화면\"을 누르면 설치돼요.";
+    if (android) return "크롬 오른쪽 위 ⋮ 메뉴에서 \"앱 설치\" 또는 \"홈 화면에 추가\"를 누르면 설치돼요.";
+    if (/Edg\//.test(ua)) return "주소창 오른쪽 설치 아이콘을 누르거나, ··· 메뉴 → 앱 → \"이 사이트를 앱으로 설치\"를 눌러 주세요.";
+    return "주소창 오른쪽 설치 아이콘(⊕)을 누르거나, ⋮ 메뉴 → \"전송, 공유 및 저장\" → \"페이지를 앱으로 설치\"를 눌러 주세요.";
+  }
   btn.addEventListener("click", async () => {
-    if (!deferred) return;
-    deferred.prompt();
-    try { await deferred.userChoice; } catch (e) {}
-    deferred = null; btn.hidden = true;
+    if (deferred) {
+      deferred.prompt();
+      try { await deferred.userChoice; } catch (e) {}
+      deferred = null;
+      return;
+    }
+    if (tip) { tip.textContent = howTo() + " 이미 설치했다면 홈 화면(바탕화면)의 단팥 아이콘으로 열면 돼요."; tip.hidden = false; }
   });
-  addEventListener("appinstalled", () => { btn.hidden = true; });
-  const ios = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-  if (ios && tip) tip.hidden = false;
+  addEventListener("appinstalled", () => { btn.hidden = true; if (tip) tip.hidden = true; });
+  if (tip && (ios || inApp)) { tip.textContent = howTo(); tip.hidden = false; }
 })();
 </script>
 </body>

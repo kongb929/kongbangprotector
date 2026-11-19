@@ -614,8 +614,9 @@ kbd { font-family: var(--font-body); font-size: 12px; border: 1.5px solid var(--
       const p = center(e);
       if (Math.hypot(p.x - c.x, p.y - c.y) > R) continue;
       // Everyone nearby is knocked out; only good viewers cost points.
-      // A hidden bad viewer still saying "콩바" counts as a good viewer here.
-      if (e.type === "ally" || e.type === "cheese" || e.type === "item" || (e.hidden && !e.revealed)) lost++;
+      // A hidden bad viewer still saying "콩바" counts as a good viewer here,
+      // unless the magnifier is showing it in red.
+      if (e.type === "ally" || e.type === "cheese" || e.type === "item" || (e.hidden && !e.revealed && !(S.magT > 0))) lost++;
       e.done = true; e.state = "dead";
       e.el.classList.add("hurt");
       e.el.querySelector(".say").textContent = "😵";
@@ -719,8 +720,9 @@ kbd { font-family: var(--font-body); font-size: 12px; border: 1.5px solid var(--
       hud();
       return;
     }
-    // A hidden bad viewer still saying only "콩바" counts as a good viewer.
-    const actsBad = ent.type === "enemy" && !(ent.hidden && !ent.revealed);
+    // A hidden bad viewer still saying only "콩바" counts as a good viewer,
+    // unless the magnifier is active and showing it in red.
+    const actsBad = ent.type === "enemy" && !(ent.hidden && !ent.revealed && !(S.magT > 0));
     if (tool === "gun") {
       fx("ring", local(ev).x, local(ev).y, "", 320);
       Sfx.shot();

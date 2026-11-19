@@ -259,12 +259,21 @@ kbd { font-family: var(--font-body); font-size: 12px; border: 1.5px solid var(--
 .tool[aria-pressed="true"].heart { background: #FFE3EE; }
 .tool[aria-pressed="true"] { transform: translateY(3px); box-shadow: 0 1px 0 var(--ink); }
 .hint { margin: 0; font-size: 13px; color: var(--ink-soft); text-align: center; line-height: 1.5; }
+/* Start button stays pinned to the bottom of the intro while the rules scroll. */
+#startOverlay .panel > .row {
+  position: sticky; bottom: -16px; z-index: 2; background: var(--card);
+  margin: 0 -22px; padding: 12px 22px 16px; border-top: 2px solid var(--line);
+  border-radius: 0 0 19px 19px; box-shadow: 0 -8px 14px -10px rgba(61,51,84,.35);
+}
 
 @media (max-width: 520px) {
   .rules { grid-template-columns: 1fr; }
   .brand { font-size: 22px; }
   .bubble { font-size: 15px; padding: 3px 9px; }
   .panel h1 { font-size: 28px; }
+  /* Phones: start and install buttons share one line, half each. */
+  #startOverlay .panel > .row { flex-wrap: nowrap; }
+  #startOverlay .panel > .row .btn { flex: 1 1 0; min-width: 0; font-size: 17px; padding: 10px 6px; white-space: nowrap; }
 }
 @media (prefers-reduced-motion: reduce) {
   .bean .bodyg, .bean .feet ellipse { animation: none; }

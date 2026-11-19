@@ -847,9 +847,9 @@ kbd { font-family: var(--font-body); font-size: 12px; border: 1.5px solid var(--
   const shareMsg = t => { $("shareMsg").textContent = t; };
   const cardName = () => $("nameInput").value.replace(/\s+/g, " ").trim().slice(0, 12);
   function titleFor(score) {
-    if (score >= 1800) return "콩방의 지배자";
-    if (score >= 1200) return "전설의 콩방 지킴이";
-    if (score >= 800) return "든든한 콩방 지킴이";
+    if (score >= 2000) return "콩방의 지배자";
+    if (score >= 1300) return "전설의 콩방 지킴이";
+    if (score >= 600) return "든든한 콩방 지킴이";
     return "콩방 새싹 지킴이";
   }
 
